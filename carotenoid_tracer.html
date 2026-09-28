@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Carotenoid Carbon Tracer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700&family=IBM+Plex+Mono:wght@400;500&family=Source+Sans+3:wght@400;600&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+
+<style>
+  /* ---------- COLORS ---------- */
+  :root {
+    --bg: #F3F5F1; --surface: #FFFFFF; --ink: #1D2420; --muted: #5C6860; --line: #D9DFD8;
+    --new: #D9701A;   /* orange = NEW carotenoid */
+    --old: #6F9A5B;   /* green  = OLD carotenoid */
+    --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+    --body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #131815; --surface: #1B221E; --ink: #E7ECE5; --muted: #9AA79E; --line: #2E3832;
+      --new: #F0923A; --old: #8DB878;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #131815; --surface: #1B221E; --ink: #E7ECE5; --muted: #9AA79E; --line: #2E3832;
+    --new: #F0923A; --old: #8DB878;
+  }
+
+  /* ---------- LAYOUT ---------- */
+  body { background: var(--bg); color: var(--ink); font: 17px/1.55 var(--body); }
+  .page { max-width: 1040px; margin: 0 auto; padding-inline: 20px; padding-block: 32px 48px; display: grid; gap: 24px; }
+  h1, h2 { font-family: var(--display); font-weight: 700; margin: 0; line-height: 1.15; text-wrap: balance; }
+  h1 { font-size: clamp(28px, 4.5vw, 40px); }
+  h2 { font-size: 20px; }
+  p { margin: 0; }
+  .lede { max-width: 62ch; color: var(--muted); }
+  .pathway { font: 500 14px/1.5 var(--mono); color: var(--muted); }
+  .pathway b { color: var(--new); font-weight: 500; }
+
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 22px; display: grid; gap: 16px; }
+  .workspace { display: grid; grid-template-columns: minmax(260px, 320px) 1fr; gap: 24px; align-items: start; }
+  @media (max-width: 800px) { .workspace { grid-template-columns: 1fr; } }
+
+  /* ---------- INPUTS ---------- */
+  .field { display: grid; gap: 4px; }
+  .field label { font-weight: 600; }
+  .field small { color: var(--muted); font-size: 14px; line-height: 1.4; }
+  .box { display: flex; align-items: center; gap: 8px; }
+  .box input {
+    width: 110px; font: 500 16px var(--mono); color: var(--ink); background: var(--bg);
+    border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px;
+  }
+  .box span { color: var(--muted); font-size: 15px; }
+  .calc { font: 500 14px var(--mono); color: var(--new); }
+  button {
+    font: 600 15px var(--body); color: var(--surface); background: var(--new);
+    border: 0; border-radius: 6px; padding: 10px 14px; cursor: pointer;
+  }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+  /* ---------- RESULTS ---------- */
+  .summary p { max-width: 62ch; }
+  .summary b { font-family: var(--mono); font-weight: 500; color: var(--new); }
+  .legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 14px; color: var(--muted); }
+  .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+  .chart-box { position: relative; height: 320px; }
+  .axes { display: grid; gap: 6px; font-size: 15px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 12px; }
+  .axes b { color: var(--ink); }
+
+  /* ---------- EQUATION ---------- */
+  .eq {
+    overflow-x: auto; font: 15px/2 var(--mono); background: var(--bg);
+    border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px;
+  }
+  .eq div { white-space: nowrap; }
+  .eq .step { color: var(--muted); font-family: var(--body); font-size: 14px; margin-top: 6px; }
+  .eq .step:first-child { margin-top: 0; }
+  .eq .new { color: var(--new); }
+  .eq .old { color: var(--old); }
+  .symbols { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; font-size: 15px; }
+  .symbols dt { font-family: var(--mono); color: var(--new); }
+  .symbols dd { margin: 0; color: var(--muted); }
+</style>
+</head>
+<body style="margin:0">
+
+<div class="page">
+
+  <header style="display:grid; gap:12px">
+    <h1>Carotenoid Carbon Tracer</h1>
+    <p class="lede">We add glucose with a "heavy" carbon tag to the cells, then weigh the carotenoid they make. Heavier molecules contain carbon from the tagged glucose. Enter your experiment below to see what the measurement should look like.</p>
+    <p class="pathway"><b>glucose</b> → acetyl-CoA (2 C) → mevalonate (6 C) → <b>IPP (5 C)</b> + CO₂ → 8 IPP → <b>carotenoid (40 C)</b></p>
+  </header>
+
+  <div class="workspace">
+
+    <!-- ===== INPUTS ===== -->
+    <section class="panel" aria-label="Inputs">
+      <h2>Your experiment</h2>
+
+      <div class="field">
+        <label for="total">Total glucose in the food</label>
+        <div class="box"><input type="number" id="total" min="0.1" step="0.1" value="10"><span>g/L</span></div>
+      </div>
+
+      <div class="field">
+        <label for="labeled">Labeled (¹³C) glucose you add</label>
+        <div class="box"><input type="number" id="labeled" min="0" step="0.1" value="5"><span>g/L</span></div>
+        <small class="calc" id="pctOut"></small>
+      </div>
+
+      <div class="field">
+        <label for="share">Carbon that comes from glucose (D)</label>
+        <div class="box"><input type="number" id="share" min="0" max="100" step="1" value="70"><span>%</span></div>
+        <small>Your guess. The rest comes from other sources, like stored fats.</small>
+      </div>
+
+      <div class="field">
+        <label for="half">Time to replace half the carotenoid</label>
+        <div class="box"><input type="number" id="half" min="1" step="1" value="24"><span>hours</span></div>
+        <small>Your guess. Assumes the total amount of carotenoid stays the same.</small>
+      </div>
+
+      <div class="field">
+        <label for="time">When you take the sample (t)</label>
+        <div class="box"><input type="number" id="time" min="0" step="1" value="12"><span>hours after adding</span></div>
+      </div>
+
+      <button id="play" type="button">▶ Play from 0 to 72 hours</button>
+    </section>
+
+    <!-- ===== RESULTS ===== -->
+    <section style="display:grid; gap:24px" aria-live="polite">
+
+      <div class="panel summary">
+        <h2>What this means</h2>
+        <p id="s1"></p>
+        <p id="s2"></p>
+      </div>
+
+      <div class="panel">
+        <h2 id="chartTitle">Time = 12 hours</h2>
+        <div class="legend">
+          <span><i style="background:var(--new)"></i>NEW carotenoid (made after the glucose was added)</span>
+          <span><i style="background:var(--old)"></i>OLD carotenoid (already there)</span>
+        </div>
+        <div class="chart-box"><canvas id="massChart" aria-label="Predicted mass isotopomer pattern"></canvas></div>
+        <div class="axes">
+          <p><b>Bottom axis (M0, M1, M2 …):</b> how many heavy carbons a carotenoid molecule has. M0 has none, M1 has one, M2 has two, and so on, up to M40.</p>
+          <p><b>Side axis (fractional abundance):</b> the share of all carotenoid molecules that have that many heavy carbons. 0.2 means 20% of molecules. All the bars add up to 1.</p>
+          <p><b>How to read it:</b> more carbon from labeled glucose pushes the bars to the right. More new carotenoid makes the orange part bigger.</p>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ===== FULL EQUATION ===== -->
+  <section class="panel">
+    <h2>The full equation</h2>
+    <div class="eq">
+      <div class="step">1. Share of glucose that is labeled</div>
+      <div>p = labeled glucose ÷ total glucose</div>
+
+      <div class="step">2. Mix one acetyl-CoA (i = 0, 1, 2 heavy carbons)</div>
+      <div>X<sub>i</sub> = p·D·T<sub>i</sub> + (1 − p·D)·N<sub>i</sub></div>
+
+      <div class="step">3. The one carbon kept from the third acetyl-CoA in each IPP (the other leaves as CO₂)</div>
+      <div>Y<sub>0</sub> = X<sub>0</sub> + ½X<sub>1</sub> &nbsp;&nbsp;&nbsp; Y<sub>1</sub> = X<sub>2</sub> + ½X<sub>1</sub></div>
+
+      <div class="step">4. One carotenoid = 8 IPP = 16 whole acetyl-CoA + 8 kept carbons</div>
+      <div>M<sub>m</sub> = <span class="new">g(t) · Σ [16! ⁄ (a<sub>0</sub>! a<sub>1</sub>! a<sub>2</sub>!)] · [8! ⁄ (b<sub>0</sub>! b<sub>1</sub>!)] · X<sub>0</sub><sup>a<sub>0</sub></sup> X<sub>1</sub><sup>a<sub>1</sub></sup> X<sub>2</sub><sup>a<sub>2</sub></sup> · Y<sub>0</sub><sup>b<sub>0</sub></sup> Y<sub>1</sub><sup>b<sub>1</sub></sup></span></div>
+      <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+ <span class="old">(1 − g(t)) · [the same sum using normal carbon N instead of X]</span></div>
+      <div>the sum counts every way where a<sub>0</sub>+a<sub>1</sub>+a<sub>2</sub> = 16, b<sub>0</sub>+b<sub>1</sub> = 8, and a<sub>1</sub> + 2a<sub>2</sub> + b<sub>1</sub> = m</div>
+
+      <div class="step">5. How much carotenoid is new at time t</div>
+      <div>g(t) = 1 − e<sup>−t · ln2 ⁄ t½</sup></div>
+    </div>
+
+    <dl class="symbols">
+      <dt>M<sub>m</sub></dt><dd>fractional abundance of carotenoid with m heavy carbons (the bars)</dd>
+      <dt>p</dt><dd>share of the glucose that is labeled (from your inputs)</dd>
+      <dt>D</dt><dd>share of the carbon that comes from glucose: how good glucose is as a precursor</dd>
+      <dt>T, N</dt><dd>heavy-carbon pattern of a labeled / normal acetyl-CoA (labeled glucose is ~99% ¹³C; normal carbon is 1.1% ¹³C)</dd>
+      <dt>g(t)</dt><dd>share of carotenoid that is new at time t</dd>
+      <dt>t½</dt><dd>time to replace half the carotenoid</dd>
+    </dl>
+  </section>
+</div>
+
+<script>
+/* ===================== THE MATH ===================== */
+const NATURAL_HEAVY = 0.011;   // normal carbon is 1.1% heavy
+const PURITY = 0.99;           // labeled glucose is ~99% heavy
+
+function combine(a, b) {        // chance of each total when two pieces are joined
+  const out = new Array(a.length + b.length - 1).fill(0);
+  for (let i = 0; i < a.length; i++)
+    for (let j = 0; j < b.length; j++) out[i + j] += a[i] * b[j];
+  return out;
+}
+
+function acetyl(labeledShare) {  // step 2: X for one acetyl-CoA
+  const T = [0, 1 - PURITY, PURITY];
+  const a = NATURAL_HEAVY;
+  const N = [(1 - a) ** 2, 2 * a * (1 - a), a ** 2];
+  return T.map((t, i) => labeledShare * t + (1 - labeledShare) * N[i]);
+}
+
+function carotenoid(labeledShare) {  // steps 3 and 4
+  const X = acetyl(labeledShare);
+  const Y = [X[0] + X[1] / 2, X[2] + X[1] / 2];
+  const ipp = combine(combine(X, X), Y);          // one IPP = 5 carbons
+  let pattern = [1];
+  for (let k = 0; k < 8; k++) pattern = combine(pattern, ipp);   // 8 IPP
+  return pattern;                                  // M0 ... M40
+}
+
+/* ===================== UPDATE THE PAGE ===================== */
+const $ = id => document.getElementById(id);
+const num = (id, fallback) => { const v = parseFloat($(id).value); return isFinite(v) ? v : fallback; };
+const cssVar = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+function update() {
+  const total   = Math.max(num("total", 10), 0.0001);
+  const labeled = Math.min(Math.max(num("labeled", 0), 0), total);
+  const p       = labeled / total;
+  const D       = Math.min(Math.max(num("share", 70), 0), 100) / 100;
+  const half    = Math.max(num("half", 24), 0.1);
+  const t       = Math.max(num("time", 0), 0);
+
+  const g = 1 - Math.exp(-t * Math.LN2 / half);
+  const newP = carotenoid(p * D);
+  const oldP = carotenoid(0);
+
+  $("pctOut").textContent = `= ${Math.round(p * 100)}% of the glucose is labeled`;
+  $("chartTitle").textContent = `Time = ${t} hours`;
+  $("s1").innerHTML = `After <b>${t} hours</b>, <b>${Math.round(g * 100)}</b> out of every 100 carotenoid molecules are new.`;
+  $("s2").innerHTML = `Glucose supplies <b>${Math.round(D * 100)}%</b> of the carbon, so about <b>${Math.round(D * 40)} of the 40</b> carbons in each new carotenoid came from glucose.`;
+
+  drawChart(newP.map(v => g * v), oldP.map(v => (1 - g) * v));
+}
+
+/* ===================== THE CHART ===================== */
+let chart;
+function drawChart(newPart, oldPart) {
+  if (!window.Chart) return;
+  // show M0 up to the last bar that is big enough to see (at least M0-M11)
+  let last = 11;
+  newPart.forEach((v, m) => { if (v + oldPart[m] > 0.002) last = Math.max(last, m); });
+  const labels = [];
+  for (let m = 0; m <= last; m++) labels.push("M" + m);
+
+  const data = {
+    labels,
+    datasets: [
+      { label: "OLD", data: oldPart.slice(0, last + 1), backgroundColor: cssVar("--old") },
+      { label: "NEW", data: newPart.slice(0, last + 1), backgroundColor: cssVar("--new") }
+    ]
+  };
+  if (chart) { chart.data = data; chart.update("none"); return; }
+
+  const muted = cssVar("--muted"), grid = cssVar("--line");
+  chart = new Chart($("massChart"), {
+    type: "bar",
+    data,
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      plugins: { legend: { display: false },
+        tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.parsed.y.toFixed(3)}` } } },
+      scales: {
+        x: { stacked: true, ticks: { color: muted }, grid: { display: false },
+             title: { display: true, text: "Mass isotopomer M+  (number of heavy carbons)", color: muted } },
+        y: { stacked: true, min: 0, ticks: { color: muted }, grid: { color: grid },
+             title: { display: true, text: "Fractional abundance", color: muted } }
+      }
+    }
+  });
+}
+
+/* ===================== BUTTONS AND INPUTS ===================== */
+["total", "labeled", "share", "half", "time"].forEach(id => $(id).addEventListener("input", update));
+
+let timer = null;
+function stop() { clearInterval(timer); timer = null; $("play").textContent = "▶ Play from 0 to 72 hours"; }
+$("play").addEventListener("click", () => {
+  if (timer) return stop();
+  $("time").value = 0;
+  $("play").textContent = "■ Stop";
+  timer = setInterval(() => {
+    const next = num("time", 0) + 1;
+    if (next > 72) return stop();
+    $("time").value = next;
+    update();
+  }, 80);
+});
+
+function rebuild() { if (chart) { chart.destroy(); chart = null; } update(); }
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", rebuild);
+new MutationObserver(rebuild).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+if (!window.Chart) $("massChart").parentElement.innerHTML = '<p>The chart could not load. Check your internet connection and reload the page.</p>';
+update();
+</script>
+</body>
+</html>
